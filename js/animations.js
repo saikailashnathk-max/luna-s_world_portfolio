@@ -771,6 +771,7 @@
    */
   function initBottomOwl() {
     const sanctuary = document.querySelector('#owl-sanctuary');
+    const perchWrap = sanctuary ? sanctuary.querySelector('.owl-perch-wrap') : null;
     const owlCreature = document.querySelector('#owl-creature');
     const owlSvg = document.querySelector('#owl-svg');
     const bodyRig = document.querySelector('#owl-body-rig');
@@ -782,6 +783,7 @@
     const pupilR = document.querySelector('#owl-pupil-right');
     const lidL = document.querySelector('#owl-lid-left');
     const lidR = document.querySelector('#owl-lid-right');
+    const sleepLashes = document.querySelector('#owl-sleep-lashes');
     const wingLFold = document.querySelector('#owl-wing-left-folded');
     const wingRFold = document.querySelector('#owl-wing-right-folded');
     const wingLFly = document.querySelector('#owl-wing-left-fly');
@@ -789,7 +791,18 @@
     const talonsPerched = document.querySelector('#owl-talons-perched');
     const talonsFlight = document.querySelector('#owl-talons-flight');
 
-    if (!sanctuary || !owlCreature || !owlSvg || !pupilL || !pupilR) return;
+    if (!sanctuary || !perchWrap || !owlCreature || !owlSvg || !pupilL || !pupilR) return;
+
+    const isLightTheme = () => document.documentElement.dataset.theme !== 'dark';
+    let lightThemeActive = isLightTheme();
+
+    const applyStaticSleepState = (sleeping) => {
+      perchWrap.classList.toggle('is-sleeping', sleeping);
+      const scale = sleeping ? 1 : 0;
+      if (lidL) lidL.setAttribute('transform', `translate(50 30) scale(1 ${scale}) translate(-50 -30)`);
+      if (lidR) lidR.setAttribute('transform', `translate(70 30) scale(1 ${scale}) translate(-70 -30)`);
+      if (sleepLashes) sleepLashes.setAttribute('opacity', String(scale));
+    };
 
     const leaves = Array.from(sanctuary.querySelectorAll('.owl-leaf')).map((el, idx) => {
       const rawPivot = (el.getAttribute('data-pivot') || '0,0').split(',');
@@ -805,6 +818,11 @@
     });
 
     if (prefersReducedMotion()) {
+      applyStaticSleepState(lightThemeActive);
+      window.addEventListener('luna:themechange', (e) => {
+        const nextLight = (e.detail && e.detail.theme ? e.detail.theme : document.documentElement.dataset.theme) !== 'dark';
+        applyStaticSleepState(nextLight);
+      });
       return;
     }
 
@@ -866,10 +884,23 @@
     let headShiftX = 0;
     let headShiftY = 0;
 
-    // Blinking state
+    // Blinking & daytime sleep state (closes eyes + "zzzzzzzz" bubble in light theme)
     let nextBlinkAt = performance.now() + 2600;
     let blinkProgress = -1;
     let doubleBlinkQueued = false;
+    let sleepAmount = lightThemeActive ? 1 : 0;
+
+    if (lightThemeActive) {
+      applyStaticSleepState(true);
+    }
+
+    window.addEventListener('luna:themechange', (e) => {
+      const nextTheme = e.detail && e.detail.theme ? e.detail.theme : document.documentElement.dataset.theme;
+      lightThemeActive = nextTheme !== 'dark';
+      if (!lightThemeActive) {
+        nextBlinkAt = performance.now() + 1800;
+      }
+    });
 
     // Branch damped spring state
     let branchBend = 0;
@@ -937,11 +968,25 @@
       let targetRY = -0.35;
       let targetTilt = 0;
 
+      const shouldSleep = lightThemeActive && mode === 'perched';
+      sleepAmount += ((shouldSleep ? 1 : 0) - sleepAmount) * (1 - Math.exp(-6.5 * dt));
+      if (sleepAmount < 0.002) sleepAmount = 0;
+      if (sleepAmount > 0.998) sleepAmount = 1;
+      perchWrap.classList.toggle('is-sleeping', shouldSleep && sleepAmount > 0.55);
+
       if (mode === 'flight') {
         const mag = Math.hypot(targetVx, targetVy) || 1;
         targetLX = targetRX = clamp((targetVx / mag) * 2.4, -2.5, 2.5);
         targetLY = targetRY = clamp((targetVy / mag) * 1.8 - 0.2, -2.0, 2.0);
         targetTilt = clamp(targetVx * 0.03, -6, 6);
+      } else if (shouldSleep || sleepAmount > 0.6) {
+        // Gentle drowsy nod while sleeping in light theme
+        const sleepNod = Math.sin(now * 0.0017);
+        targetLX = targetRX = 0;
+        targetLY = targetRY = 0.6;
+        targetTilt = -2.2 + sleepNod * 1.4;
+        headShiftX += (0 - headShiftX) * (1 - Math.exp(-5 * dt));
+        headShiftY += ((1.4 + sleepNod * 0.7) - headShiftY) * (1 - Math.exp(-5 * dt));
       } else if (pointer.active) {
         const rect = owlSvg.getBoundingClientRect();
         if (rect.width > 10 && rect.height > 10) {
@@ -1000,13 +1045,13 @@
         );
       }
 
-      // Natural blinking cadence
-      if (blinkProgress < 0 && now >= nextBlinkAt) {
+      // Natural blinking cadence + smooth daytime eyelid closure
+      if (!shouldSleep && blinkProgress < 0 && now >= nextBlinkAt) {
         blinkProgress = 0;
         doubleBlinkQueued = !doubleBlinkQueued && Math.random() < 0.22;
       }
 
-      let lidScale = 0;
+      let blinkScale = 0;
       if (blinkProgress >= 0) {
         blinkProgress += dt / 0.16;
         if (blinkProgress >= 1) {
@@ -1014,11 +1059,14 @@
           nextBlinkAt = now + (doubleBlinkQueued ? 140 : 3200 + Math.random() * 3400);
           if (doubleBlinkQueued) doubleBlinkQueued = false;
         } else {
-          lidScale = Math.sin(blinkProgress * Math.PI);
+          blinkScale = Math.sin(blinkProgress * Math.PI);
         }
       }
+      const lidScale = Math.max(blinkScale, sleepAmount);
+      const lashOpacity = clamp((sleepAmount - 0.5) / 0.5, 0, 1);
       if (lidL) lidL.setAttribute('transform', `translate(50 30) scale(1 ${lidScale.toFixed(3)}) translate(-50 -30)`);
       if (lidR) lidR.setAttribute('transform', `translate(70 30) scale(1 ${lidScale.toFixed(3)}) translate(-70 -30)`);
+      if (sleepLashes) sleepLashes.setAttribute('opacity', lashOpacity.toFixed(3));
     }
 
     function step(now) {
@@ -1180,6 +1228,7 @@
 
         if (p >= 1) {
           mode = 'perched';
+          owlCreature.classList.remove('is-flying');
           setWingOpenFactor(0);
         }
       }
