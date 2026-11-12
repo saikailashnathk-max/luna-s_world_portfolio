@@ -762,12 +762,469 @@
     rafId = requestAnimationFrame(step);
   }
 
+  /**
+   * Bottom Perched Moonlit Owl:
+   * - Eyes & subtle head tilt smoothly follow cursor coordinates while perched
+   * - Branch with 6 olive-sage leaves sways naturally with multi-wave air movement
+   * - Clicking (or pressing Enter/Space) launches a smooth realistic C1-continuous
+   *   infinity (∞) flight loop with dynamic wingbeats, gliding, and gentle branch landing
+   */
+  function initBottomOwl() {
+    const sanctuary = document.querySelector('#owl-sanctuary');
+    const owlCreature = document.querySelector('#owl-creature');
+    const owlSvg = document.querySelector('#owl-svg');
+    const bodyRig = document.querySelector('#owl-body-rig');
+    const branchRig = document.querySelector('#owl-branch-rig');
+    const head = document.querySelector('#owl-head');
+    const torso = document.querySelector('#owl-torso');
+    const tail = document.querySelector('#owl-tail');
+    const pupilL = document.querySelector('#owl-pupil-left');
+    const pupilR = document.querySelector('#owl-pupil-right');
+    const lidL = document.querySelector('#owl-lid-left');
+    const lidR = document.querySelector('#owl-lid-right');
+    const wingLFold = document.querySelector('#owl-wing-left-folded');
+    const wingRFold = document.querySelector('#owl-wing-right-folded');
+    const wingLFly = document.querySelector('#owl-wing-left-fly');
+    const wingRFly = document.querySelector('#owl-wing-right-fly');
+    const talonsPerched = document.querySelector('#owl-talons-perched');
+    const talonsFlight = document.querySelector('#owl-talons-flight');
+
+    if (!sanctuary || !owlCreature || !owlSvg || !pupilL || !pupilR) return;
+
+    const leaves = Array.from(sanctuary.querySelectorAll('.owl-leaf')).map((el, idx) => {
+      const rawPivot = (el.getAttribute('data-pivot') || '0,0').split(',');
+      return {
+        el,
+        px: parseFloat(rawPivot[0]) || 0,
+        py: parseFloat(rawPivot[1]) || 0,
+        phase: idx * 1.15 + 0.4,
+        span: 4.5 + (idx % 3) * 1.8,
+        speed: 1.55 + (idx % 4) * 0.34,
+        gustWeight: 0.72 + (idx % 3) * 0.22
+      };
+    });
+
+    if (prefersReducedMotion()) {
+      return;
+    }
+
+    // Clamp utility
+    const clamp = (v, min, max) => (v < min ? min : v > max ? max : v);
+    const hermite = (p0, m0, p1, m1, t) => {
+      const t2 = t * t;
+      const t3 = t2 * t;
+      const h00 = 2 * t3 - 3 * t2 + 1;
+      const h10 = t3 - 2 * t2 + t;
+      const h01 = -2 * t3 + 3 * t2;
+      const h11 = t3 - t2;
+      return h00 * p0 + h10 * m0 + h01 * p1 + h11 * m1;
+    };
+
+    // Infinity flight path constants (C1-continuous Hermite entry & landing)
+    const FLIGHT_DURATION = 5.8;
+    const CROUCH_DURATION = 0.16;
+    const SETTLE_DURATION = 0.45;
+    const U1 = 0.16;
+    const U2 = 0.84;
+    const CX = 64;
+    const CY = -102;
+    const AMP_X = 112;
+    const AMP_Y = 33;
+    const OMEGA_U = (2 * Math.PI) / (U2 - U1);
+    const VX_LOOP = AMP_X * OMEGA_U;
+    const VY_LOOP = -2 * AMP_Y * OMEGA_U;
+
+    function evalInfinityFlight(u) {
+      const uc = clamp(u, 0, 1);
+      if (uc < U1) {
+        const t = uc / U1;
+        return {
+          x: hermite(0, 8, CX, VX_LOOP * U1, t),
+          y: hermite(0, -58, CY, VY_LOOP * U1, t)
+        };
+      }
+      if (uc <= U2) {
+        const s = (uc - U1) / (U2 - U1);
+        const theta = 2 * Math.PI * s;
+        return {
+          x: CX + AMP_X * Math.sin(theta),
+          y: CY - AMP_Y * Math.sin(2 * theta)
+        };
+      }
+      const t = (uc - U2) / (1 - U2);
+      return {
+        x: hermite(CX, VX_LOOP * (1 - U2), 0, -16, t),
+        y: hermite(CY, VY_LOOP * (1 - U2), 0, 56, t)
+      };
+    }
+
+    // Interactive state
+    let pointer = { x: window.innerWidth * 0.55, y: window.innerHeight * 0.45, active: false };
+    let gazeL = { x: 0.7, y: -0.4 };
+    let gazeR = { x: 0.7, y: -0.4 };
+    let headTilt = 0;
+    let headShiftX = 0;
+    let headShiftY = 0;
+
+    // Blinking state
+    let nextBlinkAt = performance.now() + 2600;
+    let blinkProgress = -1;
+    let doubleBlinkQueued = false;
+
+    // Branch damped spring state
+    let branchBend = 0;
+    let branchVel = 0;
+    let airWake = 0;
+
+    // Flight state machine: 'perched' | 'crouch' | 'flight' | 'settle'
+    let mode = 'perched';
+    let phaseTime = 0;
+    let flightBank = 0;
+    let flapPhase = 0;
+
+    // Visibility pause/resume for 60fps efficiency
+    let isVisible = true;
+    let rafId = null;
+    let lastNow = performance.now();
+
+    window.addEventListener(
+      'pointermove',
+      (e) => {
+        pointer.x = e.clientX;
+        pointer.y = e.clientY;
+        pointer.active = true;
+      },
+      { passive: true }
+    );
+
+    document.addEventListener('mouseleave', () => {
+      pointer.active = false;
+    });
+
+    function triggerFlight() {
+      if (mode !== 'perched') return;
+      mode = 'crouch';
+      phaseTime = 0;
+      flightBank = 0;
+      flapPhase = 0;
+      owlCreature.classList.add('is-flying');
+      branchVel += 12;
+    }
+
+    owlCreature.addEventListener('click', triggerFlight);
+    owlCreature.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        triggerFlight();
+      }
+    });
+
+    function setWingOpenFactor(open) {
+      const fFold = clamp(1 - open * 1.35, 0, 1);
+      const fFly = clamp((open - 0.12) / 0.88, 0, 1);
+      if (wingLFold) wingLFold.setAttribute('opacity', fFold.toFixed(3));
+      if (wingRFold) wingRFold.setAttribute('opacity', fFold.toFixed(3));
+      if (wingLFly) wingLFly.setAttribute('opacity', fFly.toFixed(3));
+      if (wingRFly) wingRFly.setAttribute('opacity', fFly.toFixed(3));
+      if (talonsPerched) talonsPerched.setAttribute('opacity', fFold.toFixed(3));
+      if (talonsFlight) talonsFlight.setAttribute('opacity', fFly.toFixed(3));
+    }
+
+    function updateEyesAndHead(dt, now, targetVx, targetVy) {
+      let targetLX = 0.65;
+      let targetLY = -0.35;
+      let targetRX = 0.65;
+      let targetRY = -0.35;
+      let targetTilt = 0;
+
+      if (mode === 'flight') {
+        const mag = Math.hypot(targetVx, targetVy) || 1;
+        targetLX = targetRX = clamp((targetVx / mag) * 2.4, -2.5, 2.5);
+        targetLY = targetRY = clamp((targetVy / mag) * 1.8 - 0.2, -2.0, 2.0);
+        targetTilt = clamp(targetVx * 0.03, -6, 6);
+      } else if (pointer.active) {
+        const rect = owlSvg.getBoundingClientRect();
+        if (rect.width > 10 && rect.height > 10) {
+          const sx = rect.width / 120;
+          const sy = rect.height / 120;
+
+          const eyeLScreenX = rect.left + 50 * sx;
+          const eyeLScreenY = rect.top + 36.5 * sy;
+          const eyeRScreenX = rect.left + 70 * sx;
+          const eyeRScreenY = rect.top + 36.5 * sy;
+
+          const dxL = pointer.x - eyeLScreenX;
+          const dyL = pointer.y - eyeLScreenY;
+          const distL = Math.hypot(dxL, dyL) || 1;
+          const magL = Math.min(1, distL / 130);
+          targetLX = (dxL / distL) * 3.05 * magL;
+          targetLY = (dyL / distL) * 2.45 * magL;
+
+          const dxR = pointer.x - eyeRScreenX;
+          const dyR = pointer.y - eyeRScreenY;
+          const distR = Math.hypot(dxR, dyR) || 1;
+          const magR = Math.min(1, distR / 130);
+          targetRX = (dxR / distR) * 3.05 * magR;
+          targetRY = (dyR / distR) * 2.45 * magR;
+
+          const midX = (eyeLScreenX + eyeRScreenX) * 0.5;
+          const midY = (eyeLScreenY + eyeRScreenY) * 0.5;
+          targetTilt = clamp(((pointer.x - midX) / Math.max(window.innerWidth * 0.35, 160)) * 6.5, -6.5, 6.5);
+          const leanY = clamp(((pointer.y - midY) / Math.max(window.innerHeight * 0.4, 160)) * 2.2, -2.0, 2.0);
+          headShiftX += (clamp((targetLX + targetRX) * 0.26, -1.6, 1.6) - headShiftX) * (1 - Math.exp(-8 * dt));
+          headShiftY += (leanY - headShiftY) * (1 - Math.exp(-8 * dt));
+        }
+      } else {
+        // Calm neutral horizon look
+        const lookWave = Math.sin(now * 0.00055);
+        targetLX = targetRX = lookWave * 0.85;
+        targetLY = targetRY = -0.35 + Math.cos(now * 0.0004) * 0.25;
+        targetTilt = lookWave * 1.4;
+        headShiftX += (0 - headShiftX) * (1 - Math.exp(-5 * dt));
+        headShiftY += (0 - headShiftY) * (1 - Math.exp(-5 * dt));
+      }
+
+      const eyeEase = 1 - Math.exp(-13 * dt);
+      gazeL.x += (targetLX - gazeL.x) * eyeEase;
+      gazeL.y += (targetLY - gazeL.y) * eyeEase;
+      gazeR.x += (targetRX - gazeR.x) * eyeEase;
+      gazeR.y += (targetRY - gazeR.y) * eyeEase;
+      headTilt += (targetTilt - headTilt) * (1 - Math.exp(-8 * dt));
+
+      pupilL.setAttribute('transform', `translate(${gazeL.x.toFixed(2)} ${gazeL.y.toFixed(2)})`);
+      pupilR.setAttribute('transform', `translate(${gazeR.x.toFixed(2)} ${gazeR.y.toFixed(2)})`);
+      if (head) {
+        head.setAttribute(
+          'transform',
+          `translate(${headShiftX.toFixed(2)} ${headShiftY.toFixed(2)}) rotate(${headTilt.toFixed(2)} 60 44)`
+        );
+      }
+
+      // Natural blinking cadence
+      if (blinkProgress < 0 && now >= nextBlinkAt) {
+        blinkProgress = 0;
+        doubleBlinkQueued = !doubleBlinkQueued && Math.random() < 0.22;
+      }
+
+      let lidScale = 0;
+      if (blinkProgress >= 0) {
+        blinkProgress += dt / 0.16;
+        if (blinkProgress >= 1) {
+          blinkProgress = -1;
+          nextBlinkAt = now + (doubleBlinkQueued ? 140 : 3200 + Math.random() * 3400);
+          if (doubleBlinkQueued) doubleBlinkQueued = false;
+        } else {
+          lidScale = Math.sin(blinkProgress * Math.PI);
+        }
+      }
+      if (lidL) lidL.setAttribute('transform', `translate(50 30) scale(1 ${lidScale.toFixed(3)}) translate(-50 -30)`);
+      if (lidR) lidR.setAttribute('transform', `translate(70 30) scale(1 ${lidScale.toFixed(3)}) translate(-70 -30)`);
+    }
+
+    function step(now) {
+      if (document.hidden || !isVisible) {
+        rafId = null;
+        return;
+      }
+
+      const dt = Math.min(Math.max((now - lastNow) / 1000, 0.001), 0.035);
+      lastNow = now;
+      const tSec = now * 0.001;
+
+      // 1. Natural rolling breeze on leaves + subtle branch wind micro-sway
+      const gustEnvelope =
+        Math.sin(tSec * 0.52) * 0.55 +
+        Math.sin(tSec * 1.18 + 0.8) * 0.32 +
+        Math.cos(tSec * 0.27) * 0.28;
+      airWake = Math.max(0, airWake - dt * 1.8);
+
+      for (let i = 0; i < leaves.length; i++) {
+        const leaf = leaves[i];
+        const flutter = Math.sin(tSec * leaf.speed + leaf.phase) * (2.6 + airWake * 7.5);
+        const angle = (gustEnvelope * leaf.span * leaf.gustWeight + flutter);
+        leaf.el.setAttribute(
+          'transform',
+          `rotate(${angle.toFixed(2)} ${leaf.px} ${leaf.py})`
+        );
+      }
+
+      // 2. Branch Hooke's spring physics
+      const windTorque = gustEnvelope * 0.32;
+      const springForce = -78 * (branchBend - windTorque) - 8.6 * branchVel;
+      branchVel += springForce * dt;
+      branchBend += branchVel * dt;
+      if (branchRig) {
+        branchRig.setAttribute('transform', `rotate(${branchBend.toFixed(2)} 0 76)`);
+      }
+
+      // 3. Owl posture & flight state machine
+      let owlX = 0;
+      let owlY = branchBend * 1.9; // Track branch flex smoothly while perched
+      let owlRot = branchBend * 0.5;
+      let scaleX = 1;
+      let scaleY = 1;
+      let wingOpen = 0;
+      let flightVx = 0;
+      let flightVy = 0;
+
+      if (mode === 'perched') {
+        const breath = Math.sin(tSec * 2.1);
+        if (torso) torso.setAttribute('transform', `translate(60 72) scale(1 ${(1 + breath * 0.018).toFixed(4)}) translate(-60 -72)`);
+        if (tail) tail.setAttribute('transform', `rotate(${(gustEnvelope * 1.6).toFixed(2)} 60 84)`);
+        setWingOpenFactor(0);
+        updateEyesAndHead(dt, now, 0, 0);
+      } else if (mode === 'crouch') {
+        phaseTime += dt;
+        const p = clamp(phaseTime / CROUCH_DURATION, 0, 1);
+        const crouch = Math.sin(p * Math.PI);
+        owlY += crouch * 3.5;
+        scaleY = 1 - crouch * 0.09;
+        scaleX = 1 + crouch * 0.05;
+        wingOpen = p * 0.32;
+        airWake = Math.max(airWake, 0.45 * p);
+        setWingOpenFactor(wingOpen);
+        updateEyesAndHead(dt, now, 8, -40);
+        if (p >= 1) {
+          mode = 'flight';
+          phaseTime = 0;
+          branchVel += 26;
+          airWake = 1.0;
+        }
+      } else if (mode === 'flight') {
+        phaseTime += dt;
+        const u = clamp(phaseTime / FLIGHT_DURATION, 0, 1);
+        const pos = evalInfinityFlight(u);
+        const nextPos = evalInfinityFlight(Math.min(1, u + 0.008));
+        flightVx = (nextPos.x - pos.x) / (0.008 * FLIGHT_DURATION);
+        flightVy = (nextPos.y - pos.y) / (0.008 * FLIGHT_DURATION);
+
+        owlX = pos.x;
+        owlY = pos.y;
+
+        // Smooth wing open/close transitions at launch & touchdown
+        if (u < 0.07) {
+          wingOpen = 0.32 + 0.68 * (u / 0.07);
+        } else if (u > 0.91) {
+          wingOpen = Math.max(0.08, (1 - u) / 0.09);
+        } else {
+          wingOpen = 1;
+        }
+        setWingOpenFactor(wingOpen);
+
+        // Adaptive flapping cadence: deeper beats on climbs & landing flare, calm dihedral glide down swoops
+        const isClimbOrFlare = flightVy < 8 || u < 0.16 || u > 0.85;
+        const beatRate = isClimbOrFlare ? 26.5 : 10.5;
+        const beatAmp = isClimbOrFlare ? 1.0 : 0.24;
+        flapPhase += dt * beatRate;
+        const rawBeat = Math.sin(flapPhase);
+        const wingSweep = rawBeat * 28 * beatAmp - (isClimbOrFlare ? 2 : 12);
+        const wingForeshorten = 1 - Math.abs(rawBeat) * 0.28 * beatAmp;
+
+        if (wingLFly) {
+          wingLFly.setAttribute(
+            'transform',
+            `translate(45 54) rotate(${(-wingSweep).toFixed(2)}) scale(1 ${wingForeshorten.toFixed(3)}) translate(-45 -54)`
+          );
+        }
+        if (wingRFly) {
+          wingRFly.setAttribute(
+            'transform',
+            `translate(75 54) rotate(${wingSweep.toFixed(2)}) scale(1 ${wingForeshorten.toFixed(3)}) translate(-75 -54)`
+          );
+        }
+        if (tail) {
+          const tailSpread = isClimbOrFlare ? 1.12 : 1.05;
+          tail.setAttribute(
+            'transform',
+            `translate(60 84) rotate(${clamp(-flightVx * 0.04, -10, 10).toFixed(2)}) scale(${tailSpread} 1) translate(-60 -84)`
+          );
+        }
+        if (torso) {
+          torso.setAttribute('transform', `translate(60 72) scale(1 ${(1 + rawBeat * 0.028).toFixed(4)}) translate(-60 -72)`);
+        }
+
+        // Smooth banking roll into turns + subtle horizontal perspective squash
+        const targetBank = clamp(flightVx * 0.075, -18, 18);
+        flightBank += (targetBank - flightBank) * (1 - Math.exp(-9 * dt));
+        owlRot = flightBank;
+        scaleX = 1 - Math.abs(flightBank) * 0.0025;
+        owlY += rawBeat * -2.2 * beatAmp; // Subtle lift bob on downstroke
+
+        if (u > 0.9) {
+          airWake = Math.max(airWake, 0.85 * ((u - 0.9) / 0.1));
+        }
+
+        updateEyesAndHead(dt, now, flightVx, flightVy);
+
+        if (u >= 1) {
+          mode = 'settle';
+          phaseTime = 0;
+          branchVel += 34; // Natural weight compression on branch landing
+          airWake = 0.9;
+        }
+      } else if (mode === 'settle') {
+        phaseTime += dt;
+        const p = clamp(phaseTime / SETTLE_DURATION, 0, 1);
+        const cushion = Math.sin(p * Math.PI) * Math.exp(-p * 3.2);
+        owlY = branchBend * 1.9 + cushion * 3.2;
+        owlRot = branchBend * 0.55;
+        scaleY = 1 - cushion * 0.08;
+        scaleX = 1 + cushion * 0.05;
+        setWingOpenFactor(Math.max(0, 0.15 * (1 - p * 3)));
+        if (tail) tail.setAttribute('transform', 'rotate(0 60 84)');
+        if (torso) torso.setAttribute('transform', 'scale(1 1)');
+        updateEyesAndHead(dt, now, 0, 0);
+
+        if (p >= 1) {
+          mode = 'perched';
+          setWingOpenFactor(0);
+        }
+      }
+
+      if (Number.isFinite(owlX) && Number.isFinite(owlY) && Number.isFinite(owlRot)) {
+        owlCreature.style.transform = `translate3d(${owlX.toFixed(2)}px, ${owlY.toFixed(2)}px, 0) rotate(${owlRot.toFixed(2)}deg) scale(${scaleX.toFixed(3)}, ${scaleY.toFixed(3)})`;
+      }
+
+      if (bodyRig) {
+        bodyRig.setAttribute('transform', 'translate(0 0)');
+      }
+
+      rafId = requestAnimationFrame(step);
+    }
+
+    if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            isVisible = entry.isIntersecting || mode !== 'perched';
+            if (isVisible && !document.hidden && !rafId) {
+              lastNow = performance.now();
+              rafId = requestAnimationFrame(step);
+            }
+          });
+        },
+        { rootMargin: '180px 0px' }
+      );
+      observer.observe(sanctuary);
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && isVisible && !rafId) {
+        lastNow = performance.now();
+        rafId = requestAnimationFrame(step);
+      }
+    });
+
+    rafId = requestAnimationFrame(step);
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     initSmoothScroll();
     initWorkCoverTilt();
     initGSAPAnimations();
     initScrollButterfly();
     initHangingClock();
+    initBottomOwl();
   });
 })();
 
