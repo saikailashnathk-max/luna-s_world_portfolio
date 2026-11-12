@@ -641,26 +641,26 @@
               </defs>
 
               <g id="owl-body-rig" filter="url(#owl-soft-shadow)">
-                <!-- Tail feathers -->
-                <g id="owl-tail" style="transform-origin: 60px 84px;">
-                  <path d="M51 84L45 104C49 107 54 107 57 104L59 88Z" fill="#4f3e33"/>
-                  <path d="M56 85L55 107C58 109 62 109 65 107L64 85Z" fill="#5c493c"/>
-                  <path d="M61 88L63 104C66 107 71 107 75 104L69 84Z" fill="#4f3e33"/>
-                  <path d="M47 97H73" stroke="#e4bd91" stroke-opacity="0.45" stroke-width="1" stroke-linecap="round"/>
+                <!-- Tail feathers (rooted deep behind lower torso so they stay seamlessly attached in flight) -->
+                <g id="owl-tail">
+                  <path d="M52 74L45 103C49 106 54 106 57 103L59 76Z" fill="#4f3e33"/>
+                  <path d="M56 74L55 106C58 108 62 108 65 106L64 74Z" fill="#5c493c"/>
+                  <path d="M61 76L63 103C66 106 71 106 75 103L68 74Z" fill="#4f3e33"/>
+                  <path d="M48 96H72" stroke="#e4bd91" stroke-opacity="0.45" stroke-width="1" stroke-linecap="round"/>
                 </g>
 
-                <!-- Articulated flying wings (unfold during takeoff, infinity flight, and landing) -->
-                <g id="owl-wing-left-fly" opacity="0" style="transform-origin: 45px 54px;">
-                  <path d="M45 53C30 43 10 42 2 52C7 59 15 62 23 63C14 66 9 70 6 75C16 77 25 74 32 71C25 76 22 81 21 85C32 84 41 75 46 66Z" fill="url(#owl-wing-outer)"/>
-                  <path d="M42 56C29 50 17 50 9 54M40 61C29 58 19 60 12 64M38 66C30 66 24 70 19 74" stroke="#e4bd91" stroke-opacity="0.55" stroke-width="1.2" stroke-linecap="round"/>
+                <!-- Articulated flying wings (shoulders rooted deep inside torso behind chest) -->
+                <g id="owl-wing-left-fly" opacity="0">
+                  <path d="M55 51C39 45 15 41 2 52C7 59 15 62 24 63C14 66 9 70 6 75C16 77 25 74 33 71C26 76 23 81 22 85C34 83 45 75 55 68Z" fill="url(#owl-wing-outer)"/>
+                  <path d="M44 55C31 50 18 50 9 54M43 60C31 58 20 60 12 64M42 66C33 66 25 70 19 74" stroke="#e4bd91" stroke-opacity="0.55" stroke-width="1.2" stroke-linecap="round"/>
                 </g>
-                <g id="owl-wing-right-fly" opacity="0" style="transform-origin: 75px 54px;">
-                  <path d="M75 53C90 43 110 42 118 52C113 59 105 62 97 63C106 66 111 70 114 75C104 77 95 74 88 71C95 76 98 81 99 85C88 84 79 75 74 66Z" fill="url(#owl-wing-outer)"/>
-                  <path d="M78 56C91 50 103 50 111 54M80 61C91 58 101 60 108 64M82 66C90 66 96 70 101 74" stroke="#e4bd91" stroke-opacity="0.55" stroke-width="1.2" stroke-linecap="round"/>
+                <g id="owl-wing-right-fly" opacity="0">
+                  <path d="M65 51C81 45 105 41 118 52C113 59 105 62 96 63C106 66 111 70 114 75C104 77 95 74 87 71C94 76 97 81 98 85C86 83 75 75 65 68Z" fill="url(#owl-wing-outer)"/>
+                  <path d="M76 55C89 50 102 50 111 54M77 60C89 58 100 60 108 64M78 66C87 66 95 70 101 74" stroke="#e4bd91" stroke-opacity="0.55" stroke-width="1.2" stroke-linecap="round"/>
                 </g>
 
                 <!-- Plump torso & speckled cream chest -->
-                <g id="owl-torso" style="transform-origin: 60px 72px;">
+                <g id="owl-torso">
                   <ellipse cx="60" cy="68" rx="22" ry="25" fill="url(#owl-plumage)"/>
                   <ellipse cx="60" cy="70" rx="16.5" ry="20.5" fill="url(#owl-chest)"/>
                   <!-- Soft chevron feather markings -->
@@ -671,11 +671,11 @@
                 </g>
 
                 <!-- Folded perched wings -->
-                <g id="owl-wing-left-folded" style="transform-origin: 42px 54px;">
+                <g id="owl-wing-left-folded">
                   <path d="M43 50C34 56 32 76 41 90C46 86 49 74 47 56Z" fill="url(#owl-wing-outer)"/>
                   <path d="M39 62C39 69 40 76 43 83" stroke="#e4bd91" stroke-opacity="0.45" stroke-width="1.1" stroke-linecap="round"/>
                 </g>
-                <g id="owl-wing-right-folded" style="transform-origin: 78px 54px;">
+                <g id="owl-wing-right-folded">
                   <path d="M77 50C86 56 88 76 79 90C74 86 71 74 73 56Z" fill="url(#owl-wing-outer)"/>
                   <path d="M81 62C81 69 80 76 77 83" stroke="#e4bd91" stroke-opacity="0.45" stroke-width="1.1" stroke-linecap="round"/>
                 </g>
@@ -698,7 +698,7 @@
                 </g>
 
                 <!-- Owl Head + Cursor-Tracking Eyes + Blinking Eyelids -->
-                <g id="owl-head" style="transform-origin: 60px 44px;">
+                <g id="owl-head">
                   <!-- Crown & expressive ear tufts -->
                   <path d="M40 28C35 20 33 15 37 14C42 17 47 22 50 24C56 22 64 22 70 24C73 22 78 17 83 14C87 15 85 20 80 28C83 34 83 43 78 48C72 54 48 54 42 48C37 43 37 34 40 28Z" fill="url(#owl-plumage)"/>
                   <!-- Ear tuft highlights -->

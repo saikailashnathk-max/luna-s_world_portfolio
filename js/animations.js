@@ -1072,8 +1072,8 @@
 
       if (mode === 'perched') {
         const breath = Math.sin(tSec * 2.1);
-        if (torso) torso.setAttribute('transform', `translate(60 72) scale(1 ${(1 + breath * 0.018).toFixed(4)}) translate(-60 -72)`);
-        if (tail) tail.setAttribute('transform', `rotate(${(gustEnvelope * 1.6).toFixed(2)} 60 84)`);
+        if (torso) torso.setAttribute('transform', `translate(60 70) scale(1 ${(1 + breath * 0.018).toFixed(4)}) translate(-60 -70)`);
+        if (tail) tail.setAttribute('transform', `rotate(${(gustEnvelope * 1.6).toFixed(2)} 60 78)`);
         setWingOpenFactor(0);
         updateEyesAndHead(dt, now, 0, 0);
       } else if (mode === 'crouch') {
@@ -1120,30 +1120,30 @@
         const beatAmp = isClimbOrFlare ? 1.0 : 0.24;
         flapPhase += dt * beatRate;
         const rawBeat = Math.sin(flapPhase);
-        const wingSweep = rawBeat * 28 * beatAmp - (isClimbOrFlare ? 2 : 12);
-        const wingForeshorten = 1 - Math.abs(rawBeat) * 0.28 * beatAmp;
+        const wingSweep = rawBeat * 24 * beatAmp - (isClimbOrFlare ? 2 : 10);
+        const wingForeshorten = 1 - Math.abs(rawBeat) * 0.22 * beatAmp;
 
         if (wingLFly) {
           wingLFly.setAttribute(
             'transform',
-            `translate(45 54) rotate(${(-wingSweep).toFixed(2)}) scale(1 ${wingForeshorten.toFixed(3)}) translate(-45 -54)`
+            `translate(48 57) rotate(${(-wingSweep).toFixed(2)}) scale(1 ${wingForeshorten.toFixed(3)}) translate(-48 -57)`
           );
         }
         if (wingRFly) {
           wingRFly.setAttribute(
             'transform',
-            `translate(75 54) rotate(${wingSweep.toFixed(2)}) scale(1 ${wingForeshorten.toFixed(3)}) translate(-75 -54)`
+            `translate(72 57) rotate(${wingSweep.toFixed(2)}) scale(1 ${wingForeshorten.toFixed(3)}) translate(-72 -57)`
           );
         }
         if (tail) {
-          const tailSpread = isClimbOrFlare ? 1.12 : 1.05;
+          const tailSpread = isClimbOrFlare ? 1.08 : 1.03;
           tail.setAttribute(
             'transform',
-            `translate(60 84) rotate(${clamp(-flightVx * 0.04, -10, 10).toFixed(2)}) scale(${tailSpread} 1) translate(-60 -84)`
+            `translate(60 78) rotate(${clamp(-flightVx * 0.03, -8, 8).toFixed(2)}) scale(${tailSpread} 1) translate(-60 -78)`
           );
         }
         if (torso) {
-          torso.setAttribute('transform', `translate(60 72) scale(1 ${(1 + rawBeat * 0.028).toFixed(4)}) translate(-60 -72)`);
+          torso.setAttribute('transform', `translate(60 70) scale(1 ${(1 + rawBeat * 0.022).toFixed(4)}) translate(-60 -70)`);
         }
 
         // Smooth banking roll into turns + subtle horizontal perspective squash
@@ -1174,12 +1174,13 @@
         scaleY = 1 - cushion * 0.08;
         scaleX = 1 + cushion * 0.05;
         setWingOpenFactor(Math.max(0, 0.15 * (1 - p * 3)));
-        if (tail) tail.setAttribute('transform', 'rotate(0 60 84)');
-        if (torso) torso.setAttribute('transform', 'scale(1 1)');
+        if (tail) tail.setAttribute('transform', 'rotate(0 60 78)');
+        if (torso) torso.setAttribute('transform', 'translate(60 70) scale(1 1) translate(-60 -70)');
         updateEyesAndHead(dt, now, 0, 0);
 
         if (p >= 1) {
           mode = 'perched';
+          owlCreature.classList.remove('is-flying');
           setWingOpenFactor(0);
         }
       }
