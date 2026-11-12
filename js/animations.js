@@ -826,10 +826,10 @@
     const SETTLE_DURATION = 0.45;
     const U1 = 0.16;
     const U2 = 0.84;
-    const CX = 64;
-    const CY = -102;
-    const AMP_X = 112;
-    const AMP_Y = 33;
+    const CX = 0;
+    const CY = -114;
+    const AMP_X = 132;
+    const AMP_Y = 38;
     const OMEGA_U = (2 * Math.PI) / (U2 - U1);
     const VX_LOOP = AMP_X * OMEGA_U;
     const VY_LOOP = -2 * AMP_Y * OMEGA_U;
@@ -839,8 +839,8 @@
       if (uc < U1) {
         const t = uc / U1;
         return {
-          x: hermite(0, 8, CX, VX_LOOP * U1, t),
-          y: hermite(0, -58, CY, VY_LOOP * U1, t)
+          x: hermite(0, 0, CX, VX_LOOP * U1, t),
+          y: hermite(0, -68, CY, VY_LOOP * U1, t)
         };
       }
       if (uc <= U2) {
@@ -853,8 +853,8 @@
       }
       const t = (uc - U2) / (1 - U2);
       return {
-        x: hermite(CX, VX_LOOP * (1 - U2), 0, -16, t),
-        y: hermite(CY, VY_LOOP * (1 - U2), 0, 56, t)
+        x: hermite(CX, VX_LOOP * (1 - U2), 0, 0, t),
+        y: hermite(CY, VY_LOOP * (1 - U2), 0, 62, t)
       };
     }
 
@@ -1054,13 +1054,16 @@
       branchVel += springForce * dt;
       branchBend += branchVel * dt;
       if (branchRig) {
-        branchRig.setAttribute('transform', `rotate(${branchBend.toFixed(2)} 0 76)`);
+        branchRig.setAttribute(
+          'transform',
+          `translate(0 ${(branchBend * 0.95).toFixed(2)}) rotate(${(branchBend * 0.42).toFixed(2)} 210 96)`
+        );
       }
 
       // 3. Owl posture & flight state machine
       let owlX = 0;
-      let owlY = branchBend * 1.9; // Track branch flex smoothly while perched
-      let owlRot = branchBend * 0.5;
+      let owlY = branchBend * 0.95; // Track centered branch flex smoothly while perched
+      let owlRot = branchBend * 0.35;
       let scaleX = 1;
       let scaleY = 1;
       let wingOpen = 0;
@@ -1166,8 +1169,8 @@
         phaseTime += dt;
         const p = clamp(phaseTime / SETTLE_DURATION, 0, 1);
         const cushion = Math.sin(p * Math.PI) * Math.exp(-p * 3.2);
-        owlY = branchBend * 1.9 + cushion * 3.2;
-        owlRot = branchBend * 0.55;
+        owlY = branchBend * 0.95 + cushion * 3.2;
+        owlRot = branchBend * 0.35;
         scaleY = 1 - cushion * 0.08;
         scaleX = 1 + cushion * 0.05;
         setWingOpenFactor(Math.max(0, 0.15 * (1 - p * 3)));
